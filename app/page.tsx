@@ -144,6 +144,34 @@ export default function YouTubeSummarizer() {
           </Card>
         )}
 
+        {/* Loading State */}
+        {isLoading && (
+          <Card className="mb-8 border-accent/20 bg-accent/5">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-center space-x-4">
+                <div className="flex space-x-2">
+                  <div className="w-3 h-3 bg-accent rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                  <div className="w-3 h-3 bg-accent rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                  <div className="w-3 h-3 bg-accent rounded-full animate-bounce"></div>
+                </div>
+                <p className="text-accent font-medium">Обработка вашего видео...</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Error Display */}
+        {error && !isLoading && (
+          <Card className="mb-8 border-destructive/20 bg-destructive/5 text-destructive">
+            <CardHeader>
+              <CardTitle>Error</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>{error}</p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Benefits Section */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <Card className="text-center p-6 border-0 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
@@ -182,34 +210,6 @@ export default function YouTubeSummarizer() {
             </p>
           </Card>
         </div>
-
-        {/* Loading State */}
-        {isLoading && (
-          <Card className="mb-8 border-accent/20 bg-accent/5">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-center space-x-4">
-                <div className="flex space-x-2">
-                  <div className="w-3 h-3 bg-accent rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                  <div className="w-3 h-3 bg-accent rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                  <div className="w-3 h-3 bg-accent rounded-full animate-bounce"></div>
-                </div>
-                <p className="text-accent font-medium">Обработка вашего видео...</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Error Display */}
-        {error && !isLoading && (
-          <Card className="mb-8 border-destructive/20 bg-destructive/5 text-destructive">
-            <CardHeader>
-              <CardTitle>Error</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p>{error}</p>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Footer */}
         <div className="text-center mt-12 text-muted-foreground">
