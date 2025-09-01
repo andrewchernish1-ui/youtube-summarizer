@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +13,19 @@ export default function YouTubeSummarizer() {
   const [isLoading, setIsLoading] = useState(false)
   const [summary, setSummary] = useState("")
   const [error, setError] = useState("")
+  const summaryRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to summary when it appears
+  useEffect(() => {
+    if (summary && summaryRef.current) {
+      setTimeout(() => {
+        summaryRef.current?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        })
+      }, 500) // Small delay to ensure content is rendered
+    }
+  }, [summary])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -109,6 +122,28 @@ export default function YouTubeSummarizer() {
           </CardContent>
         </Card>
 
+        {/* Summary Display */}
+        {summary && !isLoading && (
+          <Card ref={summaryRef} className="shadow-lg border-0 bg-muted/50 backdrop-blur-sm mb-8">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-accent/10 rounded-lg">
+                  <FileText className="h-5 w-5 text-accent" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">Резюме видео</CardTitle>
+                  <CardDescription>Выводы и ключевые моменты, созданные ИИ</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="prose prose-gray max-w-none">
+                <div className="whitespace-pre-line text-muted-foreground leading-relaxed">{summary}</div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Benefits Section */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <Card className="text-center p-6 border-0 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
@@ -172,28 +207,6 @@ export default function YouTubeSummarizer() {
             </CardHeader>
             <CardContent>
               <p>{error}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Summary Display */}
-        {summary && !isLoading && (
-          <Card className="shadow-lg border-0 bg-muted/50 backdrop-blur-sm">
-            <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-accent/10 rounded-lg">
-                  <FileText className="h-5 w-5 text-accent" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl">Резюме видео</CardTitle>
-                  <CardDescription>Выводы и ключевые моменты, созданные ИИ</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="prose prose-gray max-w-none">
-                <div className="whitespace-pre-line text-muted-foreground leading-relaxed">{summary}</div>
-              </div>
             </CardContent>
           </Card>
         )}
