@@ -24,38 +24,44 @@ function decodeHtmlEntities(text: string): string {
 }
 
 async function getTranscript(videoId: string): Promise<string> {
-  const url = `https://${process.env.RAPIDAPI_HOST}/download-all/${videoId}?format_subtitle=srt&format_answer=json`;
+  const url = `https://api.supadata.ai/v1/transcript?url=https://www.youtube.com/watch?v=${videoId}&text=true`;
   const options = {
     method: 'GET',
     headers: {
-      'x-rapidapi-key': process.env.RAPIDAPI_KEY!,
-      'x-rapidapi-host': process.env.RAPIDAPI_HOST!,
+      'x-api-key': process.env.SUPADATA_API_KEY!,
     },
   };
 
   try {
-    console.log(`[${new Date().toISOString()}] RapidAPI Request URL: ${url}`);
-    console.log(`[${new Date().toISOString()}] RapidAPI Request Options: ${JSON.stringify(options)}`);
+    console.log(`[${new Date().toISOString()}] Supadata Request URL: ${url}`);
+    console.log(`[${new Date().toISOString()}] Supadata Request Options: ${JSON.stringify(options)}`);
 
     const response = await fetch(url, options);
-    console.log(`[${new Date().toISOString()}] RapidAPI Response Status: ${response.status}`);
+    console.log(`[${new Date().toISOString()}] Supadata Response Status: ${response.status}`);
 
     if (!response.ok) {
       const errorBody = await response.text();
-      console.error(`[${new Date().toISOString()}] RapidAPI Error Body: ${errorBody}`);
-      throw new Error(`RapidAPI request failed with status ${response.status}: ${errorBody}`);
+      console.error(`[${new Date().toISOString()}] Supadata Error Body: ${errorBody}`);
+      throw new Error(`Supadata request failed with status ${response.status}: ${errorBody}`);
     }
     const result = await response.json();
-    console.log(`[${new Date().toISOString()}] RapidAPI Response Result: ${JSON.stringify(result).substring(0, 500)}...`); // Log first 500 chars
+    console.log(`[${new Date().toISOString()}] Supadata Response Result: ${JSON.stringify(result).substring(0, 500)}...`); // Log first 500 chars
 
-    if (Array.isArray(result)) {
-        const rawTranscript = result.map(item => item.subtitle).join(' ');
-        return decodeHtmlEntities(rawTranscript);
+    // Supadata returns content as string when text=true
+    if (result.content && typeof result.content === 'string') {
+      return decodeHtmlEntities(result.content);
     }
-    return decodeHtmlEntities(result.transcript || '');
+
+    // Fallback for array format (if text=true not working)
+    if (Array.isArray(result.content)) {
+      const rawTranscript = result.content.map((item: any) => item.text || '').join(' ');
+      return decodeHtmlEntities(rawTranscript);
+    }
+
+    return '';
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] Error fetching transcript from RapidAPI:`, error);
+    console.error(`[${new Date().toISOString()}] Error fetching transcript from Supadata:`, error);
     throw new Error('Failed to fetch transcript.');
   }
 }

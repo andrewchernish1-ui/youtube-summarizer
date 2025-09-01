@@ -3,8 +3,7 @@ import { handleSummarizeRequest } from '../../app/api/summarize/route';
 // import '@testing-library/jest-dom/extend-expect'; // Moved to jest.setup.js
 
 // Mock environment variables
-process.env.RAPIDAPI_KEY = 'mock_rapidapi_key';
-process.env.RAPIDAPI_HOST = 'mock_rapidapi_host';
+process.env.SUPADATA_API_KEY = 'mock_supadata_api_key';
 process.env.GEMINI_API_KEY = 'mock_gemini_api_key';
 
 // Mock the fetch API
@@ -25,12 +24,12 @@ describe('handleSummarizeRequest', () => {
   });
 
   it('should return a summary for a valid YouTube URL', async () => {
-    // Mock RapidAPI response
+    // Mock Supadata response
     mockFetch.mockImplementationOnce((url: string, options: RequestInit) => {
-      if (url.includes(process.env.RAPIDAPI_HOST!)) {
+      if (url.includes('api.supadata.ai')) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve([{ subtitle: 'transcript part one' }, { subtitle: 'transcript part two' }]),
+          json: () => Promise.resolve({ content: 'transcript part one transcript part two' }),
         });
       }
       return Promise.reject(new Error('Unexpected fetch call'));
@@ -50,17 +49,17 @@ describe('handleSummarizeRequest', () => {
     const result = await handleSummarizeRequest('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
 
     expect(result.summary).toBe('Это сгенерированное резюме на русском языке.');
-    expect(mockFetch).toHaveBeenCalledTimes(2); // One for RapidAPI, one for Gemini
+    expect(mockFetch).toHaveBeenCalledTimes(2); // One for Supadata, one for Gemini
   });
 
-  it('should handle RapidAPI transcript fetching failure', async () => {
+  it('should handle Supadata transcript fetching failure', async () => {
     mockFetch.mockImplementationOnce((url: string, options: RequestInit) => {
-      if (url.includes(process.env.RAPIDAPI_HOST!)) {
+      if (url.includes('api.supadata.ai')) {
         return Promise.resolve({
           ok: false,
           status: 500,
-          text: () => Promise.resolve('RapidAPI error response'),
-          json: () => Promise.resolve({ message: 'RapidAPI error' }),
+          text: () => Promise.resolve('Supadata error response'),
+          json: () => Promise.resolve({ message: 'Supadata error' }),
         });
       }
       return Promise.reject(new Error('Unexpected fetch call'));
@@ -71,12 +70,12 @@ describe('handleSummarizeRequest', () => {
   });
 
   it('should handle Gemini API summarization failure', async () => {
-    // Mock RapidAPI success
+    // Mock Supadata success
     mockFetch.mockImplementationOnce((url: string, options: RequestInit) => {
-      if (url.includes(process.env.RAPIDAPI_HOST!)) {
+      if (url.includes('api.supadata.ai')) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve([{ subtitle: 'transcript part one' }]),
+          json: () => Promise.resolve({ content: 'transcript part one' }),
         });
       }
       return Promise.reject(new Error('Unexpected fetch call'));

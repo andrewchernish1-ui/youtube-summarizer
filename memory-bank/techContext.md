@@ -17,13 +17,15 @@
 
 ## 2. External APIs
 
--   **YouTube Transcript API (via RapidAPI)**
+-   **Supadata.ai Transcript API**
     -   **Purpose:** To fetch the transcript (subtitles) of a given YouTube video.
-    -   **Authentication:** Requires a RapidAPI key (`X-RapidAPI-Key`) sent in the request headers.
-    -   **Endpoint:** `https://youtube-captions-transcript-subtitles-video-combiner.p.rapidapi.com/`
+    -   **Authentication:** Requires a Supadata API key (`x-api-key`) sent in the request headers.
+    -   **Endpoint:** `https://api.supadata.ai/v1/transcript`
+    -   **Parameters:** `url` (YouTube video URL), `text=true` (returns plain text instead of timed segments)
+    -   **Response:** JSON with `content` field containing the transcript text
 -   **Gemini API (Google AI)**
     -   **Purpose:** To generate a summary from the fetched transcript text.
-    -   **Model:** `gemini-2.5-flash` (as specified).
+    -   **Model:** `gemini-2.0-flash` (as specified).
     -   **Authentication:** Requires a Google AI API key (`X-goog-api-key`) sent in the request headers.
     -   **Endpoint:** `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`
 
