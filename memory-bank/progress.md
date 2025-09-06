@@ -13,6 +13,7 @@
 -   **API Integration:** Successfully replaced RapidAPI with Supadata.ai for transcript fetching.
 -   **Testing:** Updated unit tests to work with the new Supadata API.
 -   **Backend Logic:** The `/api/summarize` route now uses Supadata.ai with proper error handling.
+-   **MCP Server:** Successfully configured Supabase MCP server for enhanced development capabilities with read-only access and project scoping.
 
 ## 3. What's Left to Build (Phase 1)
 

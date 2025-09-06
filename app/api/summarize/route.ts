@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 const summarizeRequestSchema = z.object({
   videoUrl: z.string().url({ message: 'Please provide a valid URL.' }),
@@ -24,28 +26,58 @@ function decodeHtmlEntities(text: string): string {
 }
 
 async function getTranscript(videoId: string): Promise<string> {
+  const apiKey = process.env.SUPADATA_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('SUPADATA_API_KEY is not configured');
+  }
+
   const url = `https://api.supadata.ai/v1/transcript?url=https://www.youtube.com/watch?v=${videoId}&text=true`;
   const options = {
     method: 'GET',
     headers: {
-      'x-api-key': process.env.SUPADATA_API_KEY!,
+      'x-api-key': apiKey,
     },
   };
 
   try {
     console.log(`[${new Date().toISOString()}] Supadata Request URL: ${url}`);
-    console.log(`[${new Date().toISOString()}] Supadata Request Options: ${JSON.stringify(options)}`);
+    console.log(`[${new Date().toISOString()}] Supadata API Key configured: ${apiKey ? 'Yes' : 'No'}`);
 
     const response = await fetch(url, options);
     console.log(`[${new Date().toISOString()}] Supadata Response Status: ${response.status}`);
+    console.log(`[${new Date().toISOString()}] Supadata Response Headers:`, Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(`[${new Date().toISOString()}] Supadata Error Body: ${errorBody}`);
-      throw new Error(`Supadata request failed with status ${response.status}: ${errorBody}`);
+      let errorBody;
+      const contentType = response.headers.get('content-type');
+
+      if (contentType && contentType.includes('application/json')) {
+        errorBody = await response.json();
+      } else {
+        errorBody = await response.text();
+      }
+
+      console.error(`[${new Date().toISOString()}] Supadata Error Body:`, errorBody);
+      // Log the full text response if it's not JSON
+      if (typeof errorBody === 'string') {
+        console.error(`[${new Date().toISOString()}] Full Supadata Error Response (non-JSON): ${errorBody}`);
+      }
+      throw new Error(`Supadata request failed with status ${response.status}: ${typeof errorBody === 'string' ? errorBody : JSON.stringify(errorBody)}`);
     }
-    const result = await response.json();
-    console.log(`[${new Date().toISOString()}] Supadata Response Result: ${JSON.stringify(result).substring(0, 500)}...`); // Log first 500 chars
+
+    const responseText = await response.text();
+    console.log(`[${new Date().toISOString()}] Supadata Raw Response: ${responseText.substring(0, 1000)}...`);
+
+    let result;
+    try {
+      result = JSON.parse(responseText);
+      console.log(`[${new Date().toISOString()}] Supadata Parsed JSON:`, result);
+    } catch (parseError) {
+      console.error(`[${new Date().toISOString()}] Failed to parse Supadata response as JSON:`, parseError);
+      console.error(`[${new Date().toISOString()}] Response starts with: ${responseText.substring(0, 200)}`);
+      throw new Error(`Supadata returned invalid JSON response`);
+    }
 
     // Supadata returns content as string when text=true
     if (result.content && typeof result.content === 'string') {
@@ -60,15 +92,42 @@ async function getTranscript(videoId: string): Promise<string> {
 
     return '';
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(`[${new Date().toISOString()}] Error fetching transcript from Supadata:`, error);
-    throw new Error('Failed to fetch transcript.');
+
+    // Provide more specific error messages
+    if (error.message?.includes('SUPADATA_API_KEY is not configured')) {
+      throw new Error('Сервис транскрибации не настроен. Пожалуйста, свяжитесь с администратором.');
+    }
+
+    if (error.message?.includes('status 401')) {
+      throw new Error('Ошибка аутентификации сервиса транскрибации. Пожалуйста, свяжитесь с администратором.');
+    }
+
+    if (error.message?.includes('status 404')) {
+      throw new Error('Видео не найдено или субтитры недоступны.');
+    }
+
+    if (error.message?.includes('status 429')) {
+      throw new Error('Превышен лимит запросов к сервису транскрибации. Попробуйте позже.');
+    }
+
+    if (error.message?.includes('<!DOCTYPE')) {
+      throw new Error('Сервис транскрибации временно недоступен. Попробуйте позже.');
+    }
+
+    throw new Error('Не удалось получить транскрипт видео. Возможно, субтитры недоступны для этого видео.');
   }
 }
 
 async function getSummary(transcript: string): Promise<string> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`;
     const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+        throw new Error('GEMINI_API_KEY is not configured');
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent`;
 
     const body = {
         contents: [
@@ -86,19 +145,39 @@ async function getSummary(transcript: string): Promise<string> {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-goog-api-key': apiKey!,
+            'X-goog-api-key': apiKey,
         },
         body: JSON.stringify(body),
     };
 
     try {
+        console.log(`[${new Date().toISOString()}] Gemini API Request`);
+        console.log(`[${new Date().toISOString()}] Gemini API Key configured: ${apiKey ? 'Yes' : 'No'}`);
+
         const response = await fetch(url, options);
+        console.log(`[${new Date().toISOString()}] Gemini Response Status: ${response.status}`);
+
         if (!response.ok) {
-            const errorBody = await response.json();
+            let errorBody;
+            const contentType = response.headers.get('content-type');
+
+            if (contentType && contentType.includes('application/json')) {
+                errorBody = await response.json();
+            } else {
+                errorBody = await response.text();
+            }
+
             console.error('Gemini API Error:', errorBody);
-            throw new Error(`Gemini API request failed with status ${response.status}`);
+            // Log the full text response if it's not JSON
+            if (typeof errorBody === 'string') {
+              console.error(`[${new Date().toISOString()}] Full Gemini Error Response (non-JSON): ${errorBody}`);
+            }
+            throw new Error(`Gemini API request failed with status ${response.status}: ${typeof errorBody === 'string' ? errorBody : JSON.stringify(errorBody)}`);
         }
+
         const result = await response.json();
+        console.log(`[${new Date().toISOString()}] Gemini Response received successfully`);
+
         return result.candidates[0].content.parts[0].text;
     } catch (error) {
         console.error('Error generating summary from Gemini API:', error);
@@ -135,6 +214,52 @@ export async function handleSummarizeRequest(videoUrl: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Create Supabase client for server-side auth
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
+    )
+
+    // Check authentication
+    console.log(`[${new Date().toISOString()}] API Route: Checking authentication...`);
+    console.log(`[${new Date().toISOString()}] API Route: Cookies available:`, cookieStore.getAll());
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      console.error(`[${new Date().toISOString()}] API Route: Authentication failed.`, { authError, user });
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    }
+    console.log(`[${new Date().toISOString()}] API Route: User authenticated successfully:`, user.id);
+
+    // Check daily limit
+    const today = new Date().toISOString().split('T')[0]
+    const { data: usageData, error: usageError } = await supabase
+      .from('user_usage')
+      .select('video_count')
+      .eq('user_id', user.id)
+      .eq('date', today)
+      .single()
+
+    if (usageError && usageError.code !== 'PGRST116') { // PGRST116 = no rows found
+      console.error('Error checking usage:', usageError)
+      return NextResponse.json({ error: 'Failed to check usage limits' }, { status: 500 })
+    }
+
+    const currentCount = usageData?.video_count || 0
+    if (currentCount >= 3) {
+      return NextResponse.json({
+        error: 'Daily limit exceeded. You can summarize up to 3 videos per day.'
+      }, { status: 429 })
+    }
+
     const body = await req.json();
     const validation = summarizeRequestSchema.safeParse(body);
 
@@ -143,10 +268,42 @@ export async function POST(req: NextRequest) {
     }
 
     const { videoUrl } = validation.data;
-    
+
     const { summary } = await handleSummarizeRequest(videoUrl);
 
-    return NextResponse.json({ summary });
+    // Update usage count
+    const { error: updateError } = await supabase
+      .from('user_usage')
+      .upsert({
+        user_id: user.id,
+        date: today,
+        video_count: currentCount + 1,
+        updated_at: new Date().toISOString()
+      })
+
+    if (updateError) {
+      console.error('Error updating usage:', updateError)
+      // Don't fail the request if usage update fails
+    }
+
+    // Save to history
+    const { error: historyError } = await supabase
+      .from('video_summaries')
+      .insert({
+        user_id: user.id,
+        video_url: videoUrl,
+        summary: summary
+      })
+
+    if (historyError) {
+      console.error('Error saving to history:', historyError)
+      // Don't fail the request if history save fails
+    }
+
+    return NextResponse.json({
+      summary,
+      remainingRequests: 3 - (currentCount + 1)
+    });
 
   } catch (error: any) {
     console.error('An unexpected error occurred:', error);

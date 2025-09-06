@@ -10,6 +10,7 @@ The current phase of work is **Phase 1: Initial Setup and Backend Development**.
 
 -   **Decision:** The project will use the **Next.js App Router** (`/app` directory) instead of the Pages Router (`/pages`). This decision was made because the existing project structure is already configured for it, and it is the modern standard for Next.js development.
 -   **Action:** The Memory Bank has been initialized with the core documents (`projectbrief.md`, `productContext.md`, `techContext.md`, `systemPatterns.md`). This provides a documented foundation for the project.
+-   **MCP Server Setup:** Successfully configured Supabase MCP server (`github.com/supabase-community/supabase-mcp`) with read-only access and project scoping for enhanced development capabilities.
 
 ## 3. Next Steps
 

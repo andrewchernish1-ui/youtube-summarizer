@@ -25,11 +25,14 @@ describe('handleSummarizeRequest', () => {
 
   it('should return a summary for a valid YouTube URL', async () => {
     // Mock Supadata response
+    const supadataResponse = { content: 'transcript part one transcript part two' };
     mockFetch.mockImplementationOnce((url: string, options: RequestInit) => {
       if (url.includes('api.supadata.ai')) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ content: 'transcript part one transcript part two' }),
+          headers: new Headers({ 'Content-Type': 'application/json' }),
+          json: () => Promise.resolve(supadataResponse),
+          text: () => Promise.resolve(JSON.stringify(supadataResponse)),
         });
       }
       return Promise.reject(new Error('Unexpected fetch call'));
@@ -40,6 +43,7 @@ describe('handleSummarizeRequest', () => {
       if (url.includes('generativelanguage.googleapis.com')) {
         return Promise.resolve({
           ok: true,
+          headers: new Headers({ 'Content-Type': 'application/json' }),
           json: () => Promise.resolve({ candidates: [{ content: { parts: [{ text: 'Это сгенерированное резюме на русском языке.' }] } }] }),
         });
       }
@@ -58,6 +62,7 @@ describe('handleSummarizeRequest', () => {
         return Promise.resolve({
           ok: false,
           status: 500,
+          headers: new Headers({ 'Content-Type': 'text/plain' }),
           text: () => Promise.resolve('Supadata error response'),
           json: () => Promise.resolve({ message: 'Supadata error' }),
         });
@@ -65,17 +70,20 @@ describe('handleSummarizeRequest', () => {
       return Promise.reject(new Error('Unexpected fetch call'));
     });
 
-    await expect(handleSummarizeRequest('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).rejects.toThrow('Failed to fetch transcript.');
+    await expect(handleSummarizeRequest('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).rejects.toThrow('Не удалось получить транскрипт видео. Возможно, субтитры недоступны для этого видео.');
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it('should handle Gemini API summarization failure', async () => {
     // Mock Supadata success
+    const supadataResponse = { content: 'transcript part one' };
     mockFetch.mockImplementationOnce((url: string, options: RequestInit) => {
       if (url.includes('api.supadata.ai')) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ content: 'transcript part one' }),
+          headers: new Headers({ 'Content-Type': 'application/json' }),
+          json: () => Promise.resolve(supadataResponse),
+          text: () => Promise.resolve(JSON.stringify(supadataResponse)),
         });
       }
       return Promise.reject(new Error('Unexpected fetch call'));
@@ -87,6 +95,7 @@ describe('handleSummarizeRequest', () => {
         return Promise.resolve({
           ok: false,
           status: 500,
+          headers: new Headers({ 'Content-Type': 'application/json' }),
           json: () => Promise.resolve({ error: { message: 'Gemini error' } }),
         });
       }

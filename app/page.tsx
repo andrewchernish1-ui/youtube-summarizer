@@ -3,17 +3,86 @@
 import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, Youtube, Sparkles, Clock, FileText, Bot, List } from "lucide-react"
+import { Loader2, Youtube, Sparkles, Clock, FileText, Bot, List, LogOut, User } from "lucide-react"
+import { supabase } from "@/lib/utils"
 
 export default function YouTubeSummarizer() {
   const [url, setUrl] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [summary, setSummary] = useState("")
   const [error, setError] = useState("")
+  const [user, setUser] = useState<any>(null)
+  const [remainingRequests, setRemainingRequests] = useState<number | null>(null)
   const summaryRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
+
+  // Check authentication on mount
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+      if (!user) {
+        router.push('/auth')
+      } else {
+        await loadRemainingRequests(user.id)
+      }
+    }
+    checkUser()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null)
+      if (!session?.user) {
+        router.push('/auth')
+      } else {
+        loadRemainingRequests(session.user.id)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [router])
+
+  const loadRemainingRequests = async (userId: string) => {
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      let { data: usageData, error: usageError } = await supabase
+        .from('user_usage')
+        .select('video_count')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .single()
+
+      if (usageError && usageError.code === 'PGRST116') {
+        // No record found, create initial record
+        const { error: insertError } = await supabase
+          .from('user_usage')
+          .insert({
+            user_id: userId,
+            date: today,
+            video_count: 0
+          })
+
+        if (insertError) {
+          console.error('Error creating usage record:', insertError)
+        } else {
+          usageData = { video_count: 0 }
+        }
+      } else if (usageError) {
+        console.error('Error loading usage:', usageError)
+      }
+
+      const todayCount = usageData?.video_count || 0
+      const remaining = Math.max(0, 3 - todayCount)
+
+      console.log('Main page remaining requests:', { todayCount, remaining, usageData })
+      setRemainingRequests(remaining)
+    } catch (error) {
+      console.error('Error loading remaining requests:', error)
+    }
+  }
 
   // Auto-scroll to summary when it appears
   useEffect(() => {
@@ -27,6 +96,11 @@ export default function YouTubeSummarizer() {
     }
   }, [summary])
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    router.push('/auth')
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!url.trim()) return
@@ -36,23 +110,56 @@ export default function YouTubeSummarizer() {
     setError("")
 
     try {
+      console.log('Client: Sending request to /api/summarize with URL:', url);
+
       const response = await fetch("/api/summarize", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ videoUrl: url }),
+        credentials: 'include',
       })
 
-      const data = await response.json()
+      console.log('Client: Response status:', response.status);
+      console.log('Client: Response headers:', Object.fromEntries(response.headers.entries()));
+
+      let data;
+      const contentType = response.headers.get('content-type');
+      const responseText = await response.text();
+
+      console.log('API Response:', {
+        status: response.status,
+        contentType,
+        responseLength: responseText.length,
+        responsePreview: responseText.substring(0, 200)
+      });
+
+      // Try to parse as JSON regardless of content-type
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Failed to parse response as JSON:', parseError);
+        if (response.ok) {
+          throw new Error('Сервер вернул неожиданный ответ. Попробуйте позже.');
+        } else {
+          throw new Error(`Ошибка сервера: ${response.status}`);
+        }
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || "An error occurred.")
+        throw new Error(data.error || "Произошла ошибка при обработке запроса.")
       }
 
       setSummary(data.summary)
+
+      // Update remaining requests after successful summarization
+      if (user) {
+        await loadRemainingRequests(user.id)
+      }
     } catch (err: any) {
-      setError(err.message)
+      console.error('Client error:', err);
+      setError(err.message || 'Произошла непредвиденная ошибка.')
     } finally {
       setIsLoading(false)
     }
@@ -63,6 +170,43 @@ export default function YouTubeSummarizer() {
       <div className="container mx-auto px-4 py-12 max-w-4xl">
         {/* Header Section */}
         <div className="text-center mb-12">
+          {/* User Info and Sign Out */}
+          {user && (
+            <div className="flex justify-between items-center mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-accent/10 rounded-lg">
+                  <User className="h-5 w-5 text-accent" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-medium">{user.email}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Осталось запросов: {remainingRequests !== null ? remainingRequests : '...'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push('/profile')}
+                  className="flex items-center gap-2"
+                >
+                  <User className="h-4 w-4" />
+                  Профиль
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSignOut}
+                  className="flex items-center gap-2"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Выйти
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-center gap-3 mb-6">
             <div className="p-3 bg-accent/10 rounded-xl">
               <Youtube className="h-8 w-8 text-accent" />

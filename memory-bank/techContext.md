@@ -13,7 +13,15 @@
 -   **Testing:**
     -   **Jest:** For running tests and assertions.
     -   **React Testing Library:** For testing React components to ensure they are rendered and behave correctly from a user's perspective.
-    -   **`next-test-api-route-handler`** or a similar library: To test API routes in isolation by mocking requests and responses.
+-   **`next-test-api-route-handler`** or a similar library: To test API routes in isolation by mocking requests and responses.
+
+## 5. MCP Server Integration
+
+-   **Supabase MCP Server:** Configured and connected for enhanced development capabilities
+    -   **Server Name:** `github.com/supabase-community/supabase-mcp`
+    -   **Access Mode:** Read-only with project scoping
+    -   **Available Tools:** Database operations, logging, debugging, development utilities, documentation search
+    -   **Security:** Configured with proper authentication and project restrictions
 
 ## 2. External APIs
 
